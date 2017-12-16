@@ -21,6 +21,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -40,6 +41,7 @@ import com.kabouzeid.gramophone.dialogs.SongShareDialog;
 import com.kabouzeid.gramophone.helper.MusicPlayerRemote;
 import com.kabouzeid.gramophone.helper.menu.SongMenuHelper;
 import com.kabouzeid.gramophone.model.Song;
+import com.kabouzeid.gramophone.model.lyrics.Lyrics;
 import com.kabouzeid.gramophone.ui.activities.base.AbsSlidingMusicPanelActivity;
 import com.kabouzeid.gramophone.ui.fragments.player.AbsPlayerFragment;
 import com.kabouzeid.gramophone.ui.fragments.player.PlayerAlbumCoverFragment;
@@ -48,11 +50,6 @@ import com.kabouzeid.gramophone.util.Util;
 import com.kabouzeid.gramophone.util.ViewUtil;
 import com.kabouzeid.gramophone.views.WidthFitSquareLayout;
 import com.sothree.slidinguppanel.SlidingUpPanelLayout;
-
-import org.jaudiotagger.audio.AudioFileIO;
-import org.jaudiotagger.tag.FieldKey;
-
-import java.io.File;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -65,6 +62,9 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
 
     @BindView(R.id.player_status_bar)
     View playerStatusBar;
+    @Nullable
+    @BindView(R.id.toolbar_container)
+    FrameLayout toolbarContainer;
     @BindView(R.id.player_toolbar)
     Toolbar toolbar;
     @Nullable
@@ -90,7 +90,7 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
     private AsyncTask updateIsFavoriteTask;
     private AsyncTask updateLyricsAsyncTask;
 
-    private LyricsDialog.LyricInfo lyricsInfo;
+    private Lyrics lyrics;
 
     private Impl impl;
 
@@ -167,6 +167,12 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        checkToggleToolbar(toolbarContainer);
+    }
+
+    @Override
     public void onServiceConnected() {
         updateQueue();
         updateCurrentSong();
@@ -194,6 +200,7 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
 
     private void updateQueue() {
         playingQueueAdapter.swapDataSet(MusicPlayerRemote.getPlayingQueue(), MusicPlayerRemote.getPosition());
+        playerQueueSubHeader.setText(getUpNextAndQueueTime());
         if (slidingUpPanelLayout == null || slidingUpPanelLayout.getPanelState() == SlidingUpPanelLayout.PanelState.COLLAPSED) {
             resetToCurrentPosition();
         }
@@ -201,6 +208,7 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
 
     private void updateQueuePosition() {
         playingQueueAdapter.setCurrent(MusicPlayerRemote.getPosition());
+        playerQueueSubHeader.setText(getUpNextAndQueueTime());
         if (slidingUpPanelLayout == null || slidingUpPanelLayout.getPanelState() == SlidingUpPanelLayout.PanelState.COLLAPSED) {
             resetToCurrentPosition();
         }
@@ -234,8 +242,8 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
     public boolean onMenuItemClick(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_show_lyrics:
-                if (lyricsInfo != null)
-                    LyricsDialog.create(lyricsInfo).show(getFragmentManager(), "LYRICS");
+                if (lyrics != null)
+                    LyricsDialog.create(lyrics).show(getFragmentManager(), "LYRICS");
                 return true;
         }
         return super.onMenuItemClick(item);
@@ -264,7 +272,6 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
 
         layoutManager.scrollToPositionWithOffset(MusicPlayerRemote.getPosition() + 1, 0);
     }
-
 
     private void updateIsFavorite() {
         if (updateIsFavoriteTask != null) updateIsFavoriteTask.cancel(false);
@@ -298,34 +305,33 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
     private void updateLyrics() {
         if (updateLyricsAsyncTask != null) updateLyricsAsyncTask.cancel(false);
         final Song song = MusicPlayerRemote.getCurrentSong();
-        updateLyricsAsyncTask = new AsyncTask<Void, Void, String>() {
+        updateLyricsAsyncTask = new AsyncTask<Void, Void, Lyrics>() {
             @Override
             protected void onPreExecute() {
                 super.onPreExecute();
-                lyricsInfo = null;
+                lyrics = null;
+                playerAlbumCoverFragment.setLyrics(null);
                 toolbar.getMenu().removeItem(R.id.action_show_lyrics);
             }
 
             @Override
-            protected String doInBackground(Void... params) {
-                try {
-                    return AudioFileIO.read(new File(song.data)).getTagOrCreateDefault().getFirst(FieldKey.LYRICS);
-                } catch (Exception e) {
-                    cancel(false);
+            protected Lyrics doInBackground(Void... params) {
+                String data = MusicUtil.getLyrics(song);
+                if (TextUtils.isEmpty(data)) {
                     return null;
                 }
+                return Lyrics.parse(song, data);
             }
 
             @Override
-            protected void onPostExecute(String lyrics) {
-                super.onPostExecute(lyrics);
-                if (TextUtils.isEmpty(lyrics)) {
-                    lyricsInfo = null;
+            protected void onPostExecute(Lyrics l) {
+                lyrics = l;
+                playerAlbumCoverFragment.setLyrics(lyrics);
+                if (lyrics == null) {
                     if (toolbar != null) {
                         toolbar.getMenu().removeItem(R.id.action_show_lyrics);
                     }
                 } else {
-                    lyricsInfo = new LyricsDialog.LyricInfo(song.title, lyrics);
                     Activity activity = getActivity();
                     if (toolbar != null && activity != null)
                         if (toolbar.getMenu().findItem(R.id.action_show_lyrics) == null) {
@@ -340,7 +346,7 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
             }
 
             @Override
-            protected void onCancelled(String s) {
+            protected void onCancelled(Lyrics s) {
                 onPostExecute(null);
             }
         }.execute();
@@ -400,6 +406,11 @@ public class FlatPlayerFragment extends AbsPlayerFragment implements PlayerAlbum
     @Override
     public void onFavoriteToggled() {
         toggleFavorite(MusicPlayerRemote.getCurrentSong());
+    }
+
+    @Override
+    public void onToolbarToggled() {
+        toggleToolbar(toolbarContainer);
     }
 
     @Override

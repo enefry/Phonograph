@@ -10,13 +10,14 @@ import android.view.MenuItem;
 import android.widget.Toast;
 
 import com.kabouzeid.gramophone.R;
+import com.kabouzeid.gramophone.dialogs.AddToPlaylistDialog;
 import com.kabouzeid.gramophone.dialogs.DeletePlaylistDialog;
 import com.kabouzeid.gramophone.dialogs.RenamePlaylistDialog;
 import com.kabouzeid.gramophone.helper.MusicPlayerRemote;
 import com.kabouzeid.gramophone.loader.PlaylistSongLoader;
+import com.kabouzeid.gramophone.model.AbsCustomPlaylist;
 import com.kabouzeid.gramophone.model.Playlist;
 import com.kabouzeid.gramophone.model.Song;
-import com.kabouzeid.gramophone.model.smartplaylist.AbsSmartPlaylist;
 import com.kabouzeid.gramophone.util.PlaylistsUtil;
 
 import java.io.IOException;
@@ -26,15 +27,19 @@ import java.util.ArrayList;
  * @author Karim Abou Zeid (kabouzeid)
  */
 public class PlaylistMenuHelper {
-    public static final int MENU_RES = R.menu.menu_item_playlist;
-
     public static boolean handleMenuClick(@NonNull AppCompatActivity activity, @NonNull final Playlist playlist, @NonNull MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_play:
                 MusicPlayerRemote.openQueue(new ArrayList<>(getPlaylistSongs(activity, playlist)), 0, true);
                 return true;
+            case R.id.action_play_next:
+                MusicPlayerRemote.playNext(new ArrayList<>(getPlaylistSongs(activity, playlist)));
+                return true;
             case R.id.action_add_to_current_playing:
                 MusicPlayerRemote.enqueue(new ArrayList<>(getPlaylistSongs(activity, playlist)));
+                return true;
+            case R.id.action_add_to_playlist:
+                AddToPlaylistDialog.create(new ArrayList<>(getPlaylistSongs(activity, playlist))).show(activity.getSupportFragmentManager(), "ADD_PLAYLIST");
                 return true;
             case R.id.action_rename_playlist:
                 RenamePlaylistDialog.create(playlist.id).show(activity.getSupportFragmentManager(), "RENAME_PLAYLIST");
@@ -43,7 +48,8 @@ public class PlaylistMenuHelper {
                 DeletePlaylistDialog.create(playlist).show(activity.getSupportFragmentManager(), "DELETE_PLAYLIST");
                 return true;
             case R.id.action_save_playlist:
-                @SuppressLint("ShowToast") final Toast toast = Toast.makeText(activity, R.string.saving_to_file, Toast.LENGTH_SHORT);
+                @SuppressLint("ShowToast")
+                final Toast toast = Toast.makeText(activity, R.string.saving_to_file, Toast.LENGTH_SHORT);
                 new AsyncTask<Context, Void, String>() {
                     @Override
                     protected void onPreExecute() {
@@ -77,8 +83,8 @@ public class PlaylistMenuHelper {
 
     @NonNull
     private static ArrayList<? extends Song> getPlaylistSongs(@NonNull Activity activity, Playlist playlist) {
-        return playlist instanceof AbsSmartPlaylist ?
-                ((AbsSmartPlaylist) playlist).getSongs(activity) :
+        return playlist instanceof AbsCustomPlaylist ?
+                ((AbsCustomPlaylist) playlist).getSongs(activity) :
                 PlaylistSongLoader.getPlaylistSongList(activity, playlist.id);
     }
 }

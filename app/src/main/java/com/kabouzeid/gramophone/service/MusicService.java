@@ -40,12 +40,16 @@ import com.bumptech.glide.request.animation.GlideAnimation;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.appwidgets.AppWidgetBig;
+import com.kabouzeid.gramophone.appwidgets.AppWidgetCard;
 import com.kabouzeid.gramophone.appwidgets.AppWidgetClassic;
 import com.kabouzeid.gramophone.appwidgets.AppWidgetSmall;
 import com.kabouzeid.gramophone.glide.BlurTransformation;
 import com.kabouzeid.gramophone.glide.SongGlideRequest;
 import com.kabouzeid.gramophone.helper.ShuffleHelper;
 import com.kabouzeid.gramophone.helper.StopWatch;
+import com.kabouzeid.gramophone.loader.PlaylistSongLoader;
+import com.kabouzeid.gramophone.model.AbsCustomPlaylist;
+import com.kabouzeid.gramophone.model.Playlist;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.provider.HistoryStore;
 import com.kabouzeid.gramophone.provider.MusicPlaybackQueueStore;
@@ -69,17 +73,18 @@ import java.util.Random;
 public class MusicService extends Service implements SharedPreferences.OnSharedPreferenceChangeListener, Playback.PlaybackCallbacks {
     public static final String TAG = MusicService.class.getSimpleName();
 
-    public static final String PHONOGRAPH_PACKAGE_NAME = "com.kabouzeid.gramophone" + ".temp_sticky_intent_fix"; // TODO remove ".temp_sticky_intent_fix" in a future update.
+    public static final String PHONOGRAPH_PACKAGE_NAME = "com.kabouzeid.gramophone";
     public static final String MUSIC_PACKAGE_NAME = "com.android.music";
 
     public static final String ACTION_TOGGLE_PAUSE = PHONOGRAPH_PACKAGE_NAME + ".togglepause";
     public static final String ACTION_PLAY = PHONOGRAPH_PACKAGE_NAME + ".play";
+    public static final String ACTION_PLAY_PLAYLIST = PHONOGRAPH_PACKAGE_NAME + ".play.playlist";
     public static final String ACTION_PAUSE = PHONOGRAPH_PACKAGE_NAME + ".pause";
     public static final String ACTION_STOP = PHONOGRAPH_PACKAGE_NAME + ".stop";
     public static final String ACTION_SKIP = PHONOGRAPH_PACKAGE_NAME + ".skip";
     public static final String ACTION_REWIND = PHONOGRAPH_PACKAGE_NAME + ".rewind";
     public static final String ACTION_QUIT = PHONOGRAPH_PACKAGE_NAME + ".quitservice";
-    public static final String INTENT_EXTRA_SONGS = PHONOGRAPH_PACKAGE_NAME + ".intentextra.songs";
+    public static final String INTENT_EXTRA_PLAYLIST = PHONOGRAPH_PACKAGE_NAME + "intentextra.playlist";
     public static final String INTENT_EXTRA_SHUFFLE_MODE = PHONOGRAPH_PACKAGE_NAME + ".intentextra.shufflemode";
 
     public static final String APP_WIDGET_UPDATE = PHONOGRAPH_PACKAGE_NAME + ".appwidgetupdate";
@@ -124,6 +129,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     private AppWidgetBig appWidgetBig = AppWidgetBig.getInstance();
     private AppWidgetClassic appWidgetClassic = AppWidgetClassic.getInstance();
     private AppWidgetSmall appWidgetSmall = AppWidgetSmall.getInstance();
+    private AppWidgetCard appWidgetCard = AppWidgetCard.getInstance();
 
     private Playback playback;
     private ArrayList<Song> playingQueue = new ArrayList<>();
@@ -163,7 +169,6 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     };
     private ContentObserver mediaStoreObserver;
     private boolean notHandledMetaChangedForCurrentTrack;
-    private boolean isServiceBound;
 
     private Handler uiThreadHandler;
 
@@ -197,12 +202,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
         registerReceiver(widgetIntentReceiver, new IntentFilter(APP_WIDGET_UPDATE));
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            playingNotification = new PlayingNotificationImpl24();
-        } else {
-            playingNotification = new PlayingNotificationImpl();
-        }
-        playingNotification.init(this);
+        initNotification();
 
         mediaStoreObserver = new MediaStoreObserver(playerHandler);
         throttledSeekHandler = new ThrottledSeekHandler(playerHandler);
@@ -297,21 +297,36 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
                         pause();
                         break;
                     case ACTION_PLAY:
-                        ArrayList<Song> songs = intent.getParcelableArrayListExtra(INTENT_EXTRA_SONGS);
-                        if (songs != null) {
-                            int shuffleMode = intent.getIntExtra(INTENT_EXTRA_SHUFFLE_MODE, getShuffleMode());
-                            if (intent.hasExtra(INTENT_EXTRA_SHUFFLE_MODE) && intent.getIntExtra(INTENT_EXTRA_SHUFFLE_MODE, 0) == SHUFFLE_MODE_SHUFFLE) {
-                                int startPosition = 0;
-                                if (!songs.isEmpty()) {
-                                    startPosition = new Random().nextInt(songs.size());
-                                }
-                                openQueue(songs, startPosition, false);
-                                setShuffleMode(shuffleMode);
-                            } else {
-                                openQueue(songs, 0, false);
-                            }
-                        }
                         play();
+                        break;
+                    case ACTION_PLAY_PLAYLIST:
+                        Playlist playlist = intent.getParcelableExtra(INTENT_EXTRA_PLAYLIST);
+                        int shuffleMode = intent.getIntExtra(INTENT_EXTRA_SHUFFLE_MODE, getShuffleMode());
+                        if (playlist != null) {
+                            ArrayList<Song> playlistSongs;
+                            if (playlist instanceof AbsCustomPlaylist) {
+                                playlistSongs = ((AbsCustomPlaylist) playlist).getSongs(getApplicationContext());
+                            } else {
+                                //noinspection unchecked
+                                playlistSongs = (ArrayList<Song>) (List) PlaylistSongLoader.getPlaylistSongList(getApplicationContext(), playlist.id);
+                            }
+                            if (!playlistSongs.isEmpty()) {
+                                if (shuffleMode == SHUFFLE_MODE_SHUFFLE) {
+                                    int startPosition = 0;
+                                    if (!playlistSongs.isEmpty()) {
+                                        startPosition = new Random().nextInt(playlistSongs.size());
+                                    }
+                                    openQueue(playlistSongs, startPosition, true);
+                                    setShuffleMode(shuffleMode);
+                                } else {
+                                    openQueue(playlistSongs, 0, true);
+                                }
+                            } else {
+                                Toast.makeText(getApplicationContext(), R.string.playlist_is_empty, Toast.LENGTH_LONG).show();
+                            }
+                        } else {
+                            Toast.makeText(getApplicationContext(), R.string.playlist_is_empty, Toast.LENGTH_LONG).show();
+                        }
                         break;
                     case ACTION_REWIND:
                         back(true);
@@ -321,12 +336,13 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
                         break;
                     case ACTION_STOP:
                     case ACTION_QUIT:
-                        return quit();
+                        quit();
+                        break;
                 }
             }
         }
 
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
@@ -348,22 +364,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     @Override
     public IBinder onBind(Intent intent) {
-        isServiceBound = true;
         return musicBind;
-    }
-
-    @Override
-    public void onRebind(Intent intent) {
-        isServiceBound = true;
-    }
-
-    @Override
-    public boolean onUnbind(Intent intent) {
-        isServiceBound = false;
-        if (!isPlaying()) {
-            stopSelf();
-        }
-        return true;
     }
 
     private static final class QueueSaveHandler extends Handler {
@@ -444,18 +445,13 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
         queuesRestored = true;
     }
 
-    private int quit() {
+    private void quit() {
         pause();
         playingNotification.stop();
 
-        if (isServiceBound) {
-            return START_STICKY;
-        } else {
-            closeAudioEffectSession();
-            getAudioManager().abandonAudioFocus(audioFocusListener);
-            stopSelf();
-            return START_NOT_STICKY;
-        }
+        closeAudioEffectSession();
+        getAudioManager().abandonAudioFocus(audioFocusListener);
+        stopSelf();
     }
 
     private void releaseResources() {
@@ -538,8 +534,17 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
         return (getAudioManager().requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
     }
 
-    private void updateNotification() {
-        if (getCurrentSong().id != -1) {
+    public void initNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !PreferenceUtil.getInstance(this).classicNotification()) {
+            playingNotification = new PlayingNotificationImpl24();
+        } else {
+            playingNotification = new PlayingNotificationImpl();
+        }
+        playingNotification.init(this);
+    }
+
+    public void updateNotification() {
+        if (playingNotification != null && getCurrentSong().id != -1) {
             playingNotification.update();
         }
     }
@@ -858,6 +863,24 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
         }
     }
 
+    public void playSongs(ArrayList<Song> songs, int shuffleMode) {
+        if (songs != null && !songs.isEmpty()) {
+            if (shuffleMode == SHUFFLE_MODE_SHUFFLE) {
+                int startPosition = 0;
+                if (!songs.isEmpty()) {
+                    startPosition = new Random().nextInt(songs.size());
+                }
+                openQueue(songs, startPosition, false);
+                setShuffleMode(shuffleMode);
+            } else {
+                openQueue(songs, 0, false);
+            }
+            play();
+        } else {
+            Toast.makeText(getApplicationContext(), R.string.playlist_is_empty, Toast.LENGTH_LONG).show();
+        }
+    }
+
     public void playPreviousSong(boolean force) {
         playSongAt(getPreviousPosition(force));
     }
@@ -903,6 +926,13 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     public int getSongDurationMillis() {
         return playback.duration();
+    }
+
+    public long getQueueDurationMillis(int position) {
+        long duration = 0;
+        for (int i = position + 1; i < playingQueue.size(); i++)
+            duration += playingQueue.get(i).duration;
+        return duration;
     }
 
     public int seek(int millis) {
@@ -1007,6 +1037,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
         appWidgetBig.notifyChange(this, what);
         appWidgetClassic.notifyChange(this, what);
         appWidgetSmall.notifyChange(this, what);
+        appWidgetCard.notifyChange(this, what);
     }
 
     private static final long MEDIA_SESSION_ACTIONS = PlaybackStateCompat.ACTION_PLAY
@@ -1085,6 +1116,10 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
                 updateMediaSessionMetaData();
                 break;
             case PreferenceUtil.COLORED_NOTIFICATION:
+                updateNotification();
+                break;
+            case PreferenceUtil.CLASSIC_NOTIFICATION:
+                initNotification();
                 updateNotification();
                 break;
         }
@@ -1247,6 +1282,9 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
             } else if (AppWidgetBig.NAME.equals(command)) {
                 final int[] ids = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS);
                 appWidgetBig.performUpdate(MusicService.this, ids);
+            } else if (AppWidgetCard.NAME.equals(command)) {
+                final int[] ids = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS);
+                appWidgetCard.performUpdate(MusicService.this, ids);
             }
         }
     };

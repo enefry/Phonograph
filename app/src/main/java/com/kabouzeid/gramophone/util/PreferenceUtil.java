@@ -27,6 +27,7 @@ public final class PreferenceUtil {
     public static final String ALBUM_SORT_ORDER = "album_sort_order";
     public static final String ALBUM_SONG_SORT_ORDER = "album_song_sort_order";
     public static final String SONG_SORT_ORDER = "song_sort_order";
+    public static final String GENRE_SORT_ORDER = "genre_sort_order";
 
     public static final String ALBUM_GRID_SIZE = "album_grid_size";
     public static final String ALBUM_GRID_SIZE_LAND = "album_grid_size_land";
@@ -40,16 +41,19 @@ public final class PreferenceUtil {
     public static final String ALBUM_COLORED_FOOTERS = "album_colored_footers";
     public static final String SONG_COLORED_FOOTERS = "song_colored_footers";
     public static final String ARTIST_COLORED_FOOTERS = "artist_colored_footers";
+    public static final String ALBUM_ARTIST_COLORED_FOOTERS = "album_artist_colored_footers";
 
     public static final String FORCE_SQUARE_ALBUM_COVER = "force_square_album_art";
 
     public static final String COLORED_NOTIFICATION = "colored_notification";
+    public static final String CLASSIC_NOTIFICATION = "classic_notification";
+
     public static final String COLORED_APP_SHORTCUTS = "colored_app_shortcuts";
 
     public static final String AUDIO_DUCKING = "audio_ducking";
     public static final String GAPLESS_PLAYBACK = "gapless_playback";
 
-    public static final String LAST_ADDED_CUTOFF_TIMESTAMP = "last_added_cutoff_timestamp";
+    public static final String LAST_ADDED_CUTOFF = "last_added_interval";
 
     public static final String ALBUM_ART_ON_LOCKSCREEN = "album_art_on_lockscreen";
     public static final String BLURRED_ALBUM_ART = "blurred_album_art";
@@ -65,6 +69,10 @@ public final class PreferenceUtil {
     public static final String AUTO_DOWNLOAD_IMAGES_POLICY = "auto_download_images_policy";
 
     public static final String START_DIRECTORY = "start_directory";
+
+    public static final String SYNCHRONIZED_LYRICS_SHOW = "synchronized_lyrics_show";
+
+    public static final String INITIALIZED_BLACKLIST = "initialized_blacklist";
 
     private static PreferenceUtil sInstance;
 
@@ -149,6 +157,22 @@ public final class PreferenceUtil {
         return mPreferences.getBoolean(COLORED_NOTIFICATION, true);
     }
 
+    public final boolean classicNotification() {
+        return mPreferences.getBoolean(CLASSIC_NOTIFICATION, false);
+    }
+
+    public void setColoredNotification(final boolean value) {
+        final SharedPreferences.Editor editor = mPreferences.edit();
+        editor.putBoolean(COLORED_NOTIFICATION, value);
+        editor.apply();
+    }
+
+    public void setClassicNotification(final boolean value) {
+        final SharedPreferences.Editor editor = mPreferences.edit();
+        editor.putBoolean(CLASSIC_NOTIFICATION, value);
+        editor.apply();
+    }
+
     public void setColoredAppShortcuts(final boolean value) {
         final SharedPreferences.Editor editor = mPreferences.edit();
         editor.putBoolean(COLORED_APP_SHORTCUTS, value);
@@ -184,13 +208,11 @@ public final class PreferenceUtil {
     }
 
     public final String getArtistSongSortOrder() {
-        return mPreferences.getString(ARTIST_SONG_SORT_ORDER,
-                SortOrder.ArtistSongSortOrder.SONG_A_Z);
+        return mPreferences.getString(ARTIST_SONG_SORT_ORDER, SortOrder.ArtistSongSortOrder.SONG_A_Z);
     }
 
     public final String getArtistAlbumSortOrder() {
-        return mPreferences.getString(ARTIST_ALBUM_SORT_ORDER,
-                SortOrder.ArtistAlbumSortOrder.ALBUM_YEAR);
+        return mPreferences.getString(ARTIST_ALBUM_SORT_ORDER, SortOrder.ArtistAlbumSortOrder.ALBUM_YEAR);
     }
 
     public final String getAlbumSortOrder() {
@@ -198,23 +220,45 @@ public final class PreferenceUtil {
     }
 
     public final String getAlbumSongSortOrder() {
-        return mPreferences.getString(ALBUM_SONG_SORT_ORDER,
-                SortOrder.AlbumSongSortOrder.SONG_TRACK_LIST);
+        return mPreferences.getString(ALBUM_SONG_SORT_ORDER, SortOrder.AlbumSongSortOrder.SONG_TRACK_LIST);
     }
 
     public final String getSongSortOrder() {
         return mPreferences.getString(SONG_SORT_ORDER, SortOrder.SongSortOrder.SONG_A_Z);
     }
 
-    public long getLastAddedCutOffTimestamp() {
-        return mPreferences.getLong(LAST_ADDED_CUTOFF_TIMESTAMP, 0L);
+    public final String getGenreSortOrder() {
+        return mPreferences.getString(GENRE_SORT_ORDER, SortOrder.GenreSortOrder.GENRE_A_Z);
     }
 
-    @SuppressLint("CommitPrefEdits")
-    public void setLastAddedCutoffTimestamp(final long timestamp) {
-        final SharedPreferences.Editor editor = mPreferences.edit();
-        editor.putLong(LAST_ADDED_CUTOFF_TIMESTAMP, timestamp);
-        editor.commit();
+    public long getLastAddedCutoff() {
+        final CalendarUtil calendarUtil = new CalendarUtil();
+        long interval;
+
+        switch (mPreferences.getString(LAST_ADDED_CUTOFF, "")) {
+            case "today":
+                interval = calendarUtil.getElapsedToday();
+                break;
+
+            case "this_week":
+                interval = calendarUtil.getElapsedWeek();
+                break;
+
+            case "past_three_months":
+                interval = calendarUtil.getElapsedMonths(3);
+                break;
+
+            case "this_year":
+                interval = calendarUtil.getElapsedYear();
+                break;
+
+            case "this_month":
+            default:
+                interval = calendarUtil.getElapsedMonth();
+                break;
+        }
+
+        return (System.currentTimeMillis() - interval) / 1000;
     }
 
     public int getLastSleepTimerValue() {
@@ -307,6 +351,16 @@ public final class PreferenceUtil {
         return mPreferences.getBoolean(ALBUM_COLORED_FOOTERS, true);
     }
 
+    public void setAlbumArtistColoredFooters(final boolean value) {
+        final SharedPreferences.Editor editor = mPreferences.edit();
+        editor.putBoolean(ALBUM_ARTIST_COLORED_FOOTERS, value);
+        editor.apply();
+    }
+
+    public final boolean albumArtistColoredFooters() {
+        return mPreferences.getBoolean(ALBUM_ARTIST_COLORED_FOOTERS, true);
+    }
+
     public void setSongColoredFooters(final boolean value) {
         final SharedPreferences.Editor editor = mPreferences.edit();
         editor.putBoolean(SONG_COLORED_FOOTERS, value);
@@ -355,7 +409,21 @@ public final class PreferenceUtil {
 
     public void setStartDirectory(File file) {
         final SharedPreferences.Editor editor = mPreferences.edit();
-        editor.putString(START_DIRECTORY, file.getPath());
+        editor.putString(START_DIRECTORY, FileUtil.safeGetCanonicalPath(file));
         editor.apply();
+    }
+
+    public final boolean synchronizedLyricsShow() {
+        return mPreferences.getBoolean(SYNCHRONIZED_LYRICS_SHOW, true);
+    }
+
+    public void setInitializedBlacklist() {
+        final SharedPreferences.Editor editor = mPreferences.edit();
+        editor.putBoolean(INITIALIZED_BLACKLIST, true);
+        editor.apply();
+    }
+
+    public final boolean initializedBlacklist() {
+        return mPreferences.getBoolean(INITIALIZED_BLACKLIST, false);
     }
 }
