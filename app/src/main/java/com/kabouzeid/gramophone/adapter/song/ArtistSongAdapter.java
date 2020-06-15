@@ -1,10 +1,10 @@
 package com.kabouzeid.gramophone.adapter.song;
 
 import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.util.Pair;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.util.Pair;
+import androidx.appcompat.app.AppCompatActivity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,6 +26,7 @@ import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.NavigationUtil;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Karim Abou Zeid (kabouzeid)
@@ -34,13 +35,13 @@ public class ArtistSongAdapter extends ArrayAdapter<Song> implements MaterialCab
     @Nullable
     private final CabHolder cabHolder;
     private MaterialCab cab;
-    private ArrayList<Song> dataSet;
-    private ArrayList<Song> checked;
+    private List<Song> dataSet;
+    private List<Song> checked;
 
     @NonNull
     private final AppCompatActivity activity;
 
-    public ArtistSongAdapter(@NonNull AppCompatActivity activity, @NonNull ArrayList<Song> dataSet, @Nullable CabHolder cabHolder) {
+    public ArtistSongAdapter(@NonNull AppCompatActivity activity, @NonNull List<Song> dataSet, @Nullable CabHolder cabHolder) {
         super(activity, R.layout.item_list, dataSet);
         this.activity = activity;
         this.cabHolder = cabHolder;
@@ -48,28 +49,28 @@ public class ArtistSongAdapter extends ArrayAdapter<Song> implements MaterialCab
         checked = new ArrayList<>();
     }
 
-    public ArrayList<Song> getDataSet() {
+    public List<Song> getDataSet() {
         return dataSet;
     }
 
-    public void swapDataSet(ArrayList<Song> dataSet) {
+    public void swapDataSet(List<Song> dataSet) {
         this.dataSet = dataSet;
         clear();
         addAll(dataSet);
         notifyDataSetChanged();
     }
 
-    @Nullable
     @Override
-    public View getView(final int position, @Nullable View convertView, ViewGroup parent) {
+    @NonNull
+    public View getView(final int position, View convertView, @NonNull ViewGroup parent) {
         final Song song = getItem(position);
         if (convertView == null) {
             convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_list, parent, false);
         }
 
-        final TextView songTitle = (TextView) convertView.findViewById(R.id.title);
-        final TextView songInfo = (TextView) convertView.findViewById(R.id.text);
-        final ImageView albumArt = (ImageView) convertView.findViewById(R.id.image);
+        final TextView songTitle = convertView.findViewById(R.id.title);
+        final TextView songInfo = convertView.findViewById(R.id.text);
+        final ImageView albumArt = convertView.findViewById(R.id.image);
         final View shortSeparator = convertView.findViewById(R.id.short_separator);
 
         if (position == getCount() - 1) {
@@ -93,7 +94,7 @@ public class ArtistSongAdapter extends ArrayAdapter<Song> implements MaterialCab
             albumArt.setTransitionName(activity.getString(R.string.transition_album_art));
         }
 
-        final ImageView overflowButton = (ImageView) convertView.findViewById(R.id.menu);
+        final ImageView overflowButton = convertView.findViewById(R.id.menu);
         overflowButton.setOnClickListener(new SongMenuHelper.OnClickSongMenu(activity) {
             @Override
             public Song getSong() {
@@ -114,28 +115,22 @@ public class ArtistSongAdapter extends ArrayAdapter<Song> implements MaterialCab
         });
 
         convertView.setActivated(isChecked(song));
-        convertView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (isInQuickSelectMode()) {
-                    toggleChecked(song);
-                } else {
-                    MusicPlayerRemote.openQueue(dataSet, position, true);
-                }
+        convertView.setOnClickListener(view -> {
+            if (isInQuickSelectMode()) {
+                toggleChecked(song);
+            } else {
+                MusicPlayerRemote.openQueue(dataSet, position, true);
             }
         });
-        convertView.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View view) {
-                toggleChecked(song);
-                return true;
-            }
+        convertView.setOnLongClickListener(view -> {
+            toggleChecked(song);
+            return true;
         });
 
         return convertView;
     }
 
-    private void onMultipleItemAction(@NonNull MenuItem menuItem, @NonNull ArrayList<Song> selection) {
+    private void onMultipleItemAction(@NonNull MenuItem menuItem, @NonNull List<Song> selection) {
         SongsMenuHelper.handleMenuClick(activity, selection, menuItem.getItemId());
     }
 

@@ -8,10 +8,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import com.google.android.material.snackbar.Snackbar;
+import androidx.core.app.ActivityCompat;
 import android.view.KeyEvent;
 import android.view.View;
 
@@ -120,27 +120,19 @@ public abstract class AbsBaseActivity extends AbsThemeActivity {
                         //User has deny from permission dialog
                         Snackbar.make(getSnackBarContainer(), getPermissionDeniedMessage(),
                                 Snackbar.LENGTH_INDEFINITE)
-                                .setAction(R.string.action_grant, new View.OnClickListener() {
-                                    @Override
-                                    public void onClick(View view) {
-                                        requestPermissions();
-                                    }
-                                })
+                                .setAction(R.string.action_grant, view -> requestPermissions())
                                 .setActionTextColor(ThemeStore.accentColor(this))
                                 .show();
                     } else {
                         // User has deny permission and checked never show permission dialog so you can redirect to Application settings page
                         Snackbar.make(getSnackBarContainer(), getPermissionDeniedMessage(),
                                 Snackbar.LENGTH_INDEFINITE)
-                                .setAction(R.string.action_settings, new View.OnClickListener() {
-                                    @Override
-                                    public void onClick(View view) {
-                                        Intent intent = new Intent();
-                                        intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                        Uri uri = Uri.fromParts("package", AbsBaseActivity.this.getPackageName(), null);
-                                        intent.setData(uri);
-                                        startActivity(intent);
-                                    }
+                                .setAction(R.string.action_settings, view -> {
+                                    Intent intent = new Intent();
+                                    intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                    Uri uri = Uri.fromParts("package", AbsBaseActivity.this.getPackageName(), null);
+                                    intent.setData(uri);
+                                    startActivity(intent);
                                 })
                                 .setActionTextColor(ThemeStore.accentColor(this))
                                 .show();

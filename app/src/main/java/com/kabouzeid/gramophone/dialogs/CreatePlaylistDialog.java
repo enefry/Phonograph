@@ -2,9 +2,9 @@ package com.kabouzeid.gramophone.dialogs;
 
 import android.app.Dialog;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.DialogFragment;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.DialogFragment;
 import android.text.InputType;
 import android.widget.Toast;
 
@@ -14,6 +14,7 @@ import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.PlaylistsUtil;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Karim Abou Zeid (kabouzeid), Aidan Follestad (afollestad)
@@ -29,17 +30,17 @@ public class CreatePlaylistDialog extends DialogFragment {
 
     @NonNull
     public static CreatePlaylistDialog create(@Nullable Song song) {
-        ArrayList<Song> list = new ArrayList<>();
+        List<Song> list = new ArrayList<>();
         if (song != null)
             list.add(song);
         return create(list);
     }
 
     @NonNull
-    public static CreatePlaylistDialog create(ArrayList<Song> songs) {
+    public static CreatePlaylistDialog create(List<Song> songs) {
         CreatePlaylistDialog dialog = new CreatePlaylistDialog();
         Bundle args = new Bundle();
-        args.putParcelableArrayList(SONGS, songs);
+        args.putParcelableArrayList(SONGS, new ArrayList<>(songs));
         dialog.setArguments(args);
         return dialog;
     }
@@ -54,26 +55,23 @@ public class CreatePlaylistDialog extends DialogFragment {
                 .inputType(InputType.TYPE_CLASS_TEXT |
                         InputType.TYPE_TEXT_VARIATION_PERSON_NAME |
                         InputType.TYPE_TEXT_FLAG_CAP_WORDS)
-                .input(R.string.playlist_name_empty, 0, false, new MaterialDialog.InputCallback() {
-                    @Override
-                    public void onInput(@NonNull MaterialDialog materialDialog, @NonNull CharSequence charSequence) {
-                        if (getActivity() == null)
-                            return;
-                        final String name = charSequence.toString().trim();
-                        if (!name.isEmpty()) {
-                            if (!PlaylistsUtil.doesPlaylistExist(getActivity(), name)) {
-                                final int playlistId = PlaylistsUtil.createPlaylist(getActivity(), name);
-                                if (getActivity() != null) {
-                                    //noinspection unchecked
-                                    ArrayList<Song> songs = getArguments().getParcelableArrayList(SONGS);
-                                    if (songs != null && !songs.isEmpty()) {
-                                        PlaylistsUtil.addToPlaylist(getActivity(), songs, playlistId, true);
-                                    }
+                .input(R.string.playlist_name_empty, 0, false, (materialDialog, charSequence) -> {
+                    if (getActivity() == null)
+                        return;
+                    final String name = charSequence.toString().trim();
+                    if (!name.isEmpty()) {
+                        if (!PlaylistsUtil.doesPlaylistExist(getActivity(), name)) {
+                            final int playlistId = PlaylistsUtil.createPlaylist(getActivity(), name);
+                            if (getActivity() != null) {
+                                //noinspection unchecked
+                                List<Song> songs = getArguments().getParcelableArrayList(SONGS);
+                                if (songs != null && !songs.isEmpty()) {
+                                    PlaylistsUtil.addToPlaylist(getActivity(), songs, playlistId, true);
                                 }
-                            } else {
-                                Toast.makeText(getActivity(), getActivity().getResources().getString(
-                                        R.string.playlist_exists, name), Toast.LENGTH_SHORT).show();
                             }
+                        } else {
+                            Toast.makeText(getActivity(), getActivity().getResources().getString(
+                                    R.string.playlist_exists, name), Toast.LENGTH_SHORT).show();
                         }
                     }
                 })
